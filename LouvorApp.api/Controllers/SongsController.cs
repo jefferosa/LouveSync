@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using LouvorApp.Api.Data;
 using LouvorApp.Api.Models;
+using LouvorApp.api.Utils; // Importa as nossas ferramentas mágicas!
 
 namespace LouvorApp.Api.Controllers
 {
@@ -23,16 +24,13 @@ namespace LouvorApp.Api.Controllers
             [FromQuery] int page = 1, 
             [FromQuery] int pageSize = 10)
         {
-            // Começa a montar a consulta no banco
             var query = _context.Songs.AsQueryable();
         
-            // Se o usuário digitou algo na busca, filtra por título ou artista
             if (!string.IsNullOrWhiteSpace(search))
             {
                 query = query.Where(s => s.Title.Contains(search) || s.Artist.Contains(search));
             }
         
-            // Aplica a paginação e executa a busca no banco
             var songs = await query
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
@@ -62,8 +60,48 @@ namespace LouvorApp.Api.Controllers
             _context.Songs.Add(song);
             await _context.SaveChangesAsync();
 
-            // Retorna o status 201 Created e a música recém-criada
             return CreatedAtAction(nameof(GetSong), new { id = song.Id }, song);
+        }
+
+        // 🚀 O NOVO ENDPOINT DE PALCO: GET /api/Songs/5/play?shift=2
+        [HttpGet("{id}/play")]
+        public async Task<ActionResult<object>> PlaySong(int id, [FromQuery] int shift = 0)
+        {
+            var song = await _context.Songs.FindAsync(id);
+
+            if (song == null)
+            {
+                return NotFound();
+            }
+
+            // 1. Usa o Parser para fatiar o texto bruto em blocos de Letra/Cifra
+            var parsedLines = ChordParser.Parse(song.RawChordText);
+
+            // 2. Se o usuário pediu para mudar o tom, aplica a matemática em cada acorde
+            if (shift != 0)
+            {
+                foreach (var line in parsedLines)
+                {
+                    foreach (var segment in line.Segments)
+                    {
+                        if (!string.IsNullOrEmpty(segment.Chord))
+                        {
+                            segment.Chord = ChordTransposer.Transpose(segment.Chord, shift);
+                        }
+                    }
+                }
+            }
+
+            // 3. Monta um JSON bonitão e envelopado para o App consumir
+            return Ok(new
+            {
+                song.Id,
+                song.Title,
+                song.Artist,
+                OriginalKey = song.OriginalKey,
+                AppliedShift = shift,
+                Lines = parsedLines
+            });
         }
     }
 }

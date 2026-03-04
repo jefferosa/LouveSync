@@ -34,7 +34,7 @@ namespace LouvorApp.api.Utils
             if (!match.Success) return chord; // Se não for uma cifra válida, devolve intacta
 
             string rootNote = match.Groups[1].Value;
-            string suffix = match.Groups[2].Value;
+            string suffix = Regex.Replace(match.Groups[2].Value, @"[^a-zA-Z0-9\(\)\+\-]", "");
 
             // Define qual escala usar baseada no tom atual
             var scaleToUse = rootNote.Contains('b') ? FlatScale : Scale;
