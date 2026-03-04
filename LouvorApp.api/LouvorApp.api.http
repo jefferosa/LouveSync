@@ -1,0 +1,6 @@
+@LouvorApp.api_HostAddress = http://localhost:5049
+
+GET {{LouvorApp.api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
