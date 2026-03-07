@@ -1,27 +1,36 @@
 using Microsoft.EntityFrameworkCore;
-using LouvorApp.Api.Data; // <-- Se faltar essa linha, ele não acha o AppDbContext
+using LouvorApp.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurando o Banco de Dados (SQLite)
+// Configura a API para ser visível na rede local (Ouvir em todas as interfaces)
+builder.WebHost.UseUrls("http://*:5000"); 
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// 2. Adicionando os Controllers e o Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-var app = builder.Build();
+// Configura a política de liberação de acesso (CORS)
+builder.Services.AddCors(options => {
+    options.AddDefaultPolicy(policy => {
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
 
-// 3. Configurando o Pipeline HTTP
+var app = builder.Build(); // A variável 'app' nasce aqui!
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// OBRIGATÓRIO: UseCors deve vir antes de MapControllers
+app.UseCors(); 
+
 app.UseAuthorization();
 app.MapControllers();
 

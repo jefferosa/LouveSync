@@ -1,6 +1,7 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
-// Mantenha o caminho com os dois pontos se estiver dentro de app/(tabs)
+import * as KeepAwake from 'expo-keep-awake';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+// Caminho ajustado para a estrutura app/(tabs)
 import { useAutoScroll } from '../../hooks/useAutoScroll'; 
 
 export default function App() {
@@ -9,45 +10,85 @@ export default function App() {
     handleScrollBeginDrag, handleScroll, handleContentSizeChange, handleLayout
   } = useAutoScroll();
 
-  // Simulando exatamente o JSON que sai do nosso SongsController (C#)
-  const mockApiData = {
-    title: "A Ele a Glória",
-    lines: [
-      { segments: [{ chord: "G", lyric: "Porque dEle e por Ele" }] },
-      { segments: [{ chord: "Em", lyric: "Para Ele são todas as coisas" }] },
-      { segments: [{ chord: "", lyric: "" }] }, // Linha em branco
-      { segments: [{ chord: "C", lyric: "Porque dEle e por Ele" }] },
-      { segments: [{ chord: "D", lyric: "Para Ele são todas as coisas" }] },
-      { segments: [{ chord: "", lyric: "" }] },
-      { segments: [{ chord: "", lyric: "A " }, { chord: "G", lyric: "Ele a glória" }] },
-      { segments: [{ chord: "", lyric: "A " }, { chord: "Em", lyric: "Ele a glória" }] },
-      { segments: [{ chord: "", lyric: "A " }, { chord: "C", lyric: "Ele a glória" }] },
-      { segments: [{ chord: "D", lyric: "Pra sempre, amém" }] },
-      // Repetindo para dar volume de scroll
-      { segments: [{ chord: "", lyric: "" }] },
-      { segments: [{ chord: "G", lyric: "Porque dEle e por Ele" }] },
-      { segments: [{ chord: "Em", lyric: "Para Ele são todas as coisas" }] },
-      { segments: [{ chord: "", lyric: "" }] },
-      { segments: [{ chord: "C", lyric: "Porque dEle e por Ele" }] },
-      { segments: [{ chord: "D", lyric: "Para Ele são todas as coisas" }] },
-    ]
+  // Estados para gerenciar os dados da API
+  const [song, setSong] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 1. Gerenciamento do Wake Lock (Manter tela acesa)
+  useEffect(() => {
+    // Ativa o bloqueio ao montar a tela
+    KeepAwake.activateKeepAwakeAsync();
+    
+    // Desativa ao sair para não drenar bateria após o uso
+    return () => {
+      KeepAwake.deactivateKeepAwake();
+    };
+  }, []);
+
+  // 2. Busca de dados na API
+  const fetchSong = async () => {
+    try {
+      setLoading(true);
+      // Alterado para ID 2 que é a nossa música com texto limpo
+      const response = await fetch('http://192.168.1.9:5000/api/Songs/2/play?shift=0');
+      const data = await response.json();
+      setSong(data);
+    } catch (error) {
+      console.error("Erro ao conectar com a API:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchSong();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#4DA8DA" />
+        <Text style={{ color: '#FFF', marginTop: 10 }}>Sincronizando com LouvorApp...</Text>
+      </View>
+    );
+  }
+
+  if (!song) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Text style={{ color: '#F44336', marginBottom: 20 }}>Erro ao carregar música.</Text>
+        <TouchableOpacity style={styles.button} onPress={fetchSong}>
+          <Text style={styles.buttonText}>Tentar Novamente</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{mockApiData.title}</Text>
+        <Text style={styles.title}>{song.title}</Text>
+        <Text style={styles.subtitle}>{song.artist}</Text>
         
         <View style={styles.controls}>
-          <TouchableOpacity style={styles.button} onPress={() => setSpeed(Math.max(0.5, speed - 0.5))}>
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => setSpeed(Math.max(0.5, speed - 0.5))}
+          >
             <Text style={styles.buttonText}>- Vel</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.button, isPlaying ? styles.buttonPause : styles.buttonPlay]} onPress={togglePlay}>
+          <TouchableOpacity 
+            style={[styles.button, isPlaying ? styles.buttonPause : styles.buttonPlay]} 
+            onPress={togglePlay}
+          >
             <Text style={styles.buttonText}>{isPlaying ? 'PAUSE' : 'PLAY'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button} onPress={() => setSpeed(speed + 0.5)}>
+          <TouchableOpacity 
+            style={styles.button} 
+            onPress={() => setSpeed(speed + 0.5)}
+          >
             <Text style={styles.buttonText}>+ Vel</Text>
           </TouchableOpacity>
         </View>
@@ -63,19 +104,14 @@ export default function App() {
         scrollEventThrottle={16}
       >
         <View style={styles.songContainer}>
-          {/* Mapeia cada linha da música */}
-          {mockApiData.lines.map((line, lineIndex) => (
+          {song.lines.map((line: any, lineIndex: number) => (
             <View key={lineIndex} style={styles.lineRow}>
-              
-              {/* Mapeia cada pedacinho (Segmento) daquela linha */}
-              {line.segments.map((segment, segIndex) => (
+              {line.segments.map((segment: any, segIndex: number) => (
                 <View key={segIndex} style={styles.segmentColumn}>
-                  {/* Renderiza a cifra apenas se ela existir */}
                   <Text style={styles.chord}>{segment.chord}</Text>
                   <Text style={styles.lyric}>{segment.lyric}</Text>
                 </View>
               ))}
-
             </View>
           ))}
         </View>
@@ -85,38 +121,44 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212', paddingTop: 50 },
-  header: { padding: 20, backgroundColor: '#1E1E1E', borderBottomWidth: 1, borderColor: '#333' },
-  title: { color: '#FFF', fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 15 },
+  // Fundo Preto Total (#000000) para Modo Palco
+  container: { flex: 1, backgroundColor: '#000000', paddingTop: 50 },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  header: { 
+    padding: 20, 
+    backgroundColor: '#121212', 
+    borderBottomWidth: 1, 
+    borderColor: '#333' 
+  },
+  title: { color: '#FFF', fontSize: 26, fontWeight: 'bold', textAlign: 'center' },
+  subtitle: { color: '#888', fontSize: 18, textAlign: 'center', marginBottom: 15 },
   controls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  button: { backgroundColor: '#333', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
+  
+  // Botões com Hitbox aumentada para facilitar o toque rápido
+  button: { 
+    backgroundColor: '#333', 
+    paddingVertical: 12, 
+    paddingHorizontal: 25, 
+    borderRadius: 8 
+  },
   buttonPlay: { backgroundColor: '#4CAF50' },
   buttonPause: { backgroundColor: '#F44336' },
-  buttonText: { color: '#FFF', fontWeight: 'bold' },
-  scrollArea: { flex: 1, padding: 20 },
+  buttonText: { color: '#FFF', fontWeight: 'bold', fontSize: 16 },
   
-  // --- ESTILOS MÁGICOS DO RENDERIZADOR ---
-  songContainer: {
-    paddingBottom: 150, // Dá espaço para o auto-scroll passar da última linha
-  },
-  lineRow: {
-    flexDirection: 'row', // Coloca os segmentos um do lado do outro
-    flexWrap: 'wrap',     // Se a linha for muito grande, quebra para baixo
-    marginBottom: 10,     // Espaço entre uma linha e outra
-  },
-  segmentColumn: {
-    flexDirection: 'column', // Empilha a Cifra em cima e a Letra embaixo
-  },
+  scrollArea: { flex: 1, padding: 20 },
+  songContainer: { paddingBottom: 200 },
+  lineRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
+  segmentColumn: { flexDirection: 'column' },
   chord: {
-    color: '#4DA8DA',      // Azul clássico de cifras
-    fontSize: 18,
+    color: '#4DA8DA', // Azul vibrante para alto contraste
+    fontSize: 20,
     fontWeight: 'bold',
-    fontFamily: 'monospace', // O Checklist exigiu!
-    minHeight: 22,           // Mantém o espaço mesmo se não tiver cifra nesse pedaço
+    fontFamily: 'monospace', // Garantindo alinhamento conforme Card 3
+    minHeight: 24,
   },
   lyric: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'monospace',
   }
 });
